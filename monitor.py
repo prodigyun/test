@@ -25,6 +25,21 @@ STATE_PATH = Path("monitor_state.json")
 OUT_TERMS = ("품절", "일시 품절", "일시품절", "구매 불가", "구매불가", "판매 종료", "판매종료")
 IN_TERMS = ("구매하기", "바로구매", "장바구니", "주문하기")
 MISSING_TERMS = ("상품이 없습니다", "상품을 찾을 수 없습니다", "존재하지 않는 상품")
+PAGE_ERROR_TERMS = (
+    "에러 페이지",
+    "에러페이지",
+    "오류 페이지",
+    "오류페이지",
+    "시스템 오류",
+    "시스템오류",
+    "요청이 너무 많",
+    "접속이 원활하지",
+    "접근이 제한",
+    "비정상적인 접근",
+    "too many requests",
+    "access denied",
+    "temporarily unavailable",
+)
 
 
 def normalize(text: str) -> str:
@@ -60,6 +75,14 @@ def classify(title: str, body: str, controls: str) -> str:
     if in_text and not out_text:
         return "IN_STOCK"
     return "UNKNOWN"
+
+
+def is_unavailable_page(title: str, body: str, http_status: int | None) -> bool:
+    # Never infer stock from an HTTP error or an interstitial/error page. These
+    # pages can contain shared navigation text such as "구매하기".
+    if http_status != 200:
+        return True
+    return has_term(title + " " + body[:8000], PAGE_ERROR_TERMS)
 
 
 def read_product() -> tuple[str, str, str, int | None]:
@@ -136,7 +159,10 @@ def main() -> int:
         print(f"::warning::Could not read product page: {type(exc).__name__}: {exc}")
         return 0
 
-    status = classify(title, body, controls)
+    if is_unavailable_page(title, body, http_status):
+        status = "PAGE_UNAVAILABLE"
+    else:
+        status = classify(title, body, controls)
     now = datetime.now(timezone.utc)
     print(f"Checked {PRODUCT_URL}")
     print(f"Page title: {title}")
@@ -144,7 +170,10 @@ def main() -> int:
     print(f"Detected state: {status}")
 
     if status == "PAGE_UNAVAILABLE":
-        print("::warning::The rendered page says the product is unavailable; no restock alert was sent.")
+        # A prior state inferred from an error page is not trustworthy. Reset it
+        # so a later successful read can generate a fresh alert if appropriate.
+        state["last_known_status"] = None
+        print(f"::warning::Could not verify product stock (HTTP {http_status}); no restock alert was sent.")
     elif status == "UNKNOWN":
         print("Visible buy controls:", controls[:800] or "(none)")
         clues = [line.strip() for line in body.splitlines() if has_term(line, OUT_TERMS + IN_TERMS)]
