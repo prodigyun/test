@@ -16,7 +16,7 @@ from playwright.sync_api import sync_playwright
 
 PRODUCT_URL = os.getenv(
     "PRODUCT_URL",
-    "https://smartstore.naver.com/panasonickorea/products/13726282633",
+    "https://m.smartstore.naver.com/panasonickorea/products/13726282633?fbclid=PAT01DUAUpYe1leHRuA2FlbQIxMABwZG9mAnNydGMGYXBwX2lkDzU2NzA2NzM0MzM1MjQyNwABpz4FE4-ZydMweh2KnBDBff3qV6wicjXqFZ7B1RqZDgKZq67x5417RGWmdH1N_aem_DOoOwFJkI8Vr4y98vvAa2A",
 )
 NTFY_TOPIC = os.getenv("NTFY_TOPIC", "").strip()
 NTFY_URL = "https://ntfy.sh"
